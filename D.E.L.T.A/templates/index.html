@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D.E.L.T.A. // Tactical Interface</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.105/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #000; color: #00f2ff; font-family: 'Courier New', monospace; overflow: hidden; }
+        #cesiumContainer { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+        
+        /* Stark-Tech Glass Effect */
+        .hud-glass { 
+            background: rgba(0, 20, 40, 0.85); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid #00f2ff; 
+            box-shadow: 0 0 25px rgba(0, 242, 255, 0.3); 
+        }
+
+        .terminal-text { font-size: 11px; color: #00f2ff; text-shadow: 0 0 5px #00f2ff; font-weight: bold; }
+        
+        /* Scanline Overlay */
+        .scanline { 
+            width: 100%; height: 100%; position: absolute; 
+            background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 242, 255, 0.03) 50%); 
+            background-size: 100% 4px; z-index: 10; pointer-events: none; 
+        }
+
+        /* Target Reticle Animation */
+        .reticle {
+            position: absolute; top: 50%; left: 50%;
+            width: 100px; height: 100px;
+            border: 2px solid #00f2ff;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            opacity: 0.2;
+            pointer-events: none;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    <div class="reticle"></div>
+    <div id="cesiumContainer"></div>
+
+    <div class="fixed top-10 left-10 w-85 p-6 hud-glass z-20">
+        <h1 class="text-xl font-black mb-4 tracking-tighter italic text-white border-b border-cyan-500 pb-2">PROJECT D.E.L.T.A. v1.0</h1>
+        <p class="text-[10px] text-cyan-500 mb-2 uppercase tracking-widest">Global Signature Input</p>
+        <textarea id="searchQuery" 
+            class="w-full bg-black border border-cyan-800 p-3 text-xs h-36 text-cyan-300 focus:outline-none focus:border-cyan-400 transition-all placeholder-cyan-900" 
+            placeholder="DESCRIBE GEOSPATIAL ANOMALY..."></textarea>
+        <button onclick="startDeltaSearch()" 
+            class="mt-4 w-full border border-cyan-400 py-3 text-xs font-black hover:bg-cyan-400 hover:text-black transition-all tracking-widest uppercase">
+            Initiate Neural Scan
+        </button>
+    </div>
+
+    <div class="fixed bottom-10 left-10 w-85 h-56 hud-glass p-4 z-20 overflow-y-auto flex flex-col-reverse">
+        <div id="terminal" class="terminal-text">> SYSTEM STANDBY... READY FOR INPUT.</div>
+    </div>
+
+    <div id="targetHUD" class="fixed top-10 right-10 w-72 p-6 hud-glass z-20 opacity-0 transition-opacity duration-1000">
+        <div class="text-[10px] text-cyan-500 mb-1 tracking-widest font-bold uppercase">Target Lock Acquired</div>
+        <div id="targetCoords" class="text-xl font-mono mb-6 text-white tracking-tighter"></div>
+        <div id="pdfLinkContainer"></div>
+    </div>
+
+    <script>
+        /** * STEP 1: ADD YOUR CESIUM TOKEN BELOW 
+         * Get it free at https://cesium.com/ion/
+         */
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxYjgzNmQ0OS02YjljLTQ2OTEtOTg4ZS0xMWNiOWM2MTJmYjciLCJpZCI6Mzc2MjQ2LCJpYXQiOjE3Njc4NjcxNzl9.h7JVqB5YP_nwQr5JO5gWyZ3PiPwucXmjEnh2GTInd0k';
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            // Using Ion's global satellite tiles for high-res zoom
+            terrainProvider: Cesium.createWorldTerrain(),
+            animation: false, 
+            baseLayerPicker: false, 
+            timeline: false, 
+            infoBox: false, 
+            selectionIndicator: false, 
+            navigationHelpButton: false, 
+            sceneModePicker: false,
+            geocoder: false,
+            homeButton: false
+        });
+
+        function log(msg) {
+            const term = document.getElementById('terminal');
+            const entry = document.createElement('div');
+            entry.className = "mb-1 border-l-2 border-cyan-700 pl-2";
+            entry.innerHTML = `<span class="opacity-50 text-[9px]">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+            term.prepend(entry);
+        }
+
+        async function startDeltaSearch() {
+            const query = document.getElementById('searchQuery').value;
+            if(!query) return;
+
+            // Clear previous UI state
+            document.getElementById('targetHUD').style.opacity = "0";
+            log("UPLINKING TO GROQ-LLAMA-3.3-70B...");
+
+            // THE FRANTIC SCAN (Stark-Style Randomization)
+            let scanInterval = setInterval(() => {
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(
+                        (Math.random() * 360) - 180, 
+                        (Math.random() * 140) - 70, 
+                        Math.random() * 5000000 + 2000000
+                    ),
+                    duration: 0.5
+                });
+                log(`SCANNING SECTOR ${Math.floor(Math.random()*999)}...`);
+            }, 600);
+
+            try {
+                // Fetch coordinates from Flask backend
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({description: query})
+                });
+                const data = await response.json();
+                
+                clearInterval(scanInterval);
+                log("SIGNATURE DETECTED. VERIFYING GEOMETRY...");
+
+                // FINAL ZOOM DIVE
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(data.coords.lng, data.coords.lat, 10000),
+                    duration: 3,
+                    complete: () => {
+                        log("LOCK CONFIRMED. TARGET IS LIVE.");
+                        const hud = document.getElementById('targetHUD');
+                        hud.classList.remove('opacity-0');
+                        hud.classList.add('opacity-100');
+                        
+                        document.getElementById('targetCoords').innerText = 
+                            `${data.coords.lat.toFixed(4)}°N, ${data.coords.lng.toFixed(4)}°E`;
+                        
+                        document.getElementById('pdfLinkContainer').innerHTML = `
+                            <a href="/static/${data.pdf_url}" target="_blank" 
+                               class="block w-full py-2 bg-cyan-950 border border-cyan-400 text-center text-[10px] font-bold text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all">
+                               DOWNLOAD INTEL REPORT
+                            </a>`;
+                    }
+                });
+            } catch (err) {
+                clearInterval(scanInterval);
+                log("SYSTEM ERROR: NEURAL LINK SEVERED.");
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
